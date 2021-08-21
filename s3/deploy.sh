@@ -9,8 +9,8 @@ sudo cp -f etc/nginx/sites-available/isucondition.conf /etc/nginx/sites-availabl
 cd /home/isucon/webapp/go
 go build -o isucondition
 
+sudo systemctl restart nginx
 sudo systemctl restart mariadb
-sudo systemctl reload nginx
 sudo systemctl restart isucondition.go
 
 
