@@ -757,7 +757,7 @@ func getIsuIcon(c echo.Context) error {
 		c.Logger().Error(err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
-	c.Response().Header().Set("Content-Type", "")
+	c.Response().Header().Set("Content-Type", "text/plain")
 	return c.File(getIsuIconPath(jiaUserID, c.Param("jia_isu_uuid")))
 }
 
