@@ -490,9 +490,11 @@ func getIsuList(c echo.Context) error {
 
 	responseList := []GetIsuListResponse{}
 	for _, isu := range isuList {
+		sdb := selectDB(isu.JIAIsuUUID)
+
 		var lastCondition IsuCondition
 		foundLastCondition := true
-		err = db.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
+		err = sdb.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
 			isu.JIAIsuUUID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -763,7 +765,8 @@ func getIsuGraph(c echo.Context) error {
 		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
-	res, err := generateIsuGraphResponse(db, jiaIsuUUID, date)
+	sdb := selectDB(jiaIsuUUID)
+	res, err := generateIsuGraphResponse(sdb, jiaIsuUUID, date)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.NoContent(http.StatusInternalServerError)
@@ -780,6 +783,7 @@ func generateIsuGraphResponse(q sqlx.Queryer, jiaIsuUUID string, graphDate time.
 	var startTimeInThisHour time.Time
 	var condition IsuCondition
 
+	// ここのQueryerはsdb相当（のはず）
 	rows, err := q.Queryx("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` ASC", jiaIsuUUID)
 	if err != nil {
 		return nil, fmt.Errorf("db error: %v", err)
@@ -1007,15 +1011,16 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 	conditions := []IsuCondition{}
 	var err error
 
+	sdb := selectDB(jiaIsuUUID)
 	if startTime.IsZero() {
-		err = db.Select(&conditions,
+		err = sdb.Select(&conditions,
 			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	ORDER BY `timestamp` DESC",
 			jiaIsuUUID, endTime,
 		)
 	} else {
-		err = db.Select(&conditions,
+		err = sdb.Select(&conditions,
 			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	AND ? <= `timestamp`"+
@@ -1115,8 +1120,10 @@ func updateTrend() {
 		characterWarningIsuConditions := []*TrendCondition{}
 		characterCriticalIsuConditions := []*TrendCondition{}
 		for _, isu := range isuList {
+			sdb := selectDB(isu.JIAIsuUUID)
+
 			conditions := []IsuCondition{}
-			err = db.Select(&conditions,
+			err = sdb.Select(&conditions,
 				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC",
 				isu.JIAIsuUUID,
 			)
@@ -1214,6 +1221,7 @@ func postIsuCondition(c echo.Context) error {
 
 	query := make([]string, 0, len(req))
 	params := make([]interface{}, 0, len(req)*5)
+
 	for _, cond := range req {
 		timestamp := time.Unix(cond.Timestamp, 0)
 
@@ -1224,7 +1232,8 @@ func postIsuCondition(c echo.Context) error {
 		params = append(params, jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message)
 	}
 
-	_, err = db.Exec(
+	sdb := selectDB(jiaIsuUUID)
+	_, err = sdb.Exec(
 		"INSERT INTO `isu_condition`"+
 			"	(`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`)"+
 			"	VALUES "+
