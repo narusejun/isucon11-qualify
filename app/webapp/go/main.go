@@ -50,7 +50,7 @@ var (
 	db *sqlx.DB
 
 	dbHosts = []string{
-		"isucondition-1.t.isucon.dev",
+		//"isucondition-1.t.isucon.dev",
 		"isucondition-2.t.isucon.dev",
 		"isucondition-3.t.isucon.dev",
 	}
@@ -1220,7 +1220,7 @@ func getTrend(c echo.Context) error {
 // ISUからのコンディションを受け取る
 func postIsuCondition(c echo.Context) error {
 	// TODO: 一定割合リクエストを落としてしのぐようにしたが、本来は全量さばけるようにすべき
-	dropProbability := 0.9
+	dropProbability := 0.8
 	if rand.Float64() <= dropProbability {
 		c.Logger().Warnf("drop post isu condition request")
 		return c.NoContent(http.StatusAccepted)
