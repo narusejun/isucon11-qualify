@@ -50,7 +50,7 @@ var (
 	db *sqlx.DB
 
 	dbHosts = []string{
-		"isucondition-1.t.isucon.dev",
+		//"isucondition-1.t.isucon.dev",
 		"isucondition-2.t.isucon.dev",
 		"isucondition-3.t.isucon.dev",
 	}
