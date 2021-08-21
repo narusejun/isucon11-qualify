@@ -18,13 +18,13 @@ sudo systemctl restart mariadb
 
 
 # slow query logを有効化する
-QUERY="
- set global slow_query_log_file = '/var/log/mysql/mysql-slow.log';
- set global long_query_time = 0;
- set global slow_query_log = ON;
-"
-
-echo $QUERY | sudo mysql -uroot
+# QUERY="
+#  set global slow_query_log_file = '/var/log/mysql/mysql-slow.log';
+#  set global long_query_time = 0;
+#  set global slow_query_log = ON;
+# "
+#
+# echo $QUERY | sudo mysql -uroot
 
 # log permission
 sudo chmod 777 /var/log/nginx /var/log/nginx/*
