@@ -21,6 +21,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
 	"github.com/jmoiron/sqlx"
+	echoInt "github.com/kaz/pprotein/integration/echov4"
+	"github.com/kaz/pprotein/integration/standalone"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
@@ -207,9 +209,10 @@ func init() {
 }
 
 func main() {
+	go standalone.Integrate(":8888")
+
 	e := echo.New()
-	e.Debug = true
-	e.Logger.SetLevel(log.DEBUG)
+	echoInt.Integrate(e)
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
