@@ -1172,7 +1172,6 @@ func trendUpdater() {
 						trendCacheMux.Unlock()
 					}
 				}()
-			}
 		}
 	}
 }
