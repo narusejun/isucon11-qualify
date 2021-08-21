@@ -758,7 +758,16 @@ func getIsuIcon(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 	c.Response().Header().Set("Content-Type", "text/plain")
-	return c.File(getIsuIconPath(jiaUserID, c.Param("jia_isu_uuid")))
+
+	f, err := os.Open(getIsuIconPath(jiaUserID, c.Param("jia_isu_uuid")))
+	if err != nil {
+		return c.String(http.StatusNotFound, "not found: isu")
+	}
+	defer f.Close()
+
+	fi, _ := f.Stat()
+	http.ServeContent(c.Response(), c.Request(), fi.Name(), fi.ModTime(), f)
+	return nil
 }
 
 // GET /api/isu/:jia_isu_uuid/graph
