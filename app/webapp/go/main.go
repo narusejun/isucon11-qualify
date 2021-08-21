@@ -45,7 +45,15 @@ const (
 )
 
 var (
-	db                  *sqlx.DB
+	db *sqlx.DB
+
+	dbHosts = []string{
+		"isucondition-1.t.isucon.dev",
+		"isucondition-2.t.isucon.dev",
+		"isucondition-3.t.isucon.dev",
+	}
+	dbShard []*sqlx.DB
+
 	sessionStore        sessions.Store
 	mySQLConnectionData *MySQLConnectionEnv
 
@@ -180,9 +188,9 @@ func getEnv(key string, defaultValue string) string {
 	return defaultValue
 }
 
-func NewMySQLConnectionEnv() *MySQLConnectionEnv {
+func NewMySQLConnectionEnv(host string) *MySQLConnectionEnv {
 	return &MySQLConnectionEnv{
-		Host:     getEnv("MYSQL_HOST", "127.0.0.1"),
+		Host:     getEnv("MYSQL_HOST", host),
 		Port:     getEnv("MYSQL_PORT", "3306"),
 		User:     getEnv("MYSQL_USER", "isucon"),
 		DBName:   getEnv("MYSQL_DBNAME", "isucondition"),
@@ -239,17 +247,20 @@ func main() {
 	e.GET("/register", getIndex)
 	e.Static("/assets", frontendContentsPath+"/assets")
 
-	mySQLConnectionData = NewMySQLConnectionEnv()
+	dbShard = make([]*sqlx.DB, len(dbHosts))
 
-	var err error
-	db, err = mySQLConnectionData.ConnectDB()
-	if err != nil {
-		e.Logger.Fatalf("failed to connect db: %v", err)
-		return
+	for i, _ := range dbShard {
+		var err error
+		dbShard[i], err = NewMySQLConnectionEnv(dbHosts[i]).ConnectDB()
+		if err != nil {
+			e.Logger.Fatalf("failed to connect db: %v", err)
+			return
+		}
+		dbShard[i].SetMaxOpenConns(100)
+		dbShard[i].SetMaxIdleConns(100)
+		defer dbShard[i].Close()
 	}
-	db.SetMaxOpenConns(100)
-	db.SetMaxIdleConns(100)
-	defer db.Close()
+	db = dbShard[0]
 
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
@@ -259,6 +270,11 @@ func main() {
 
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
 	e.Logger.Fatal(e.Start(serverPort))
+}
+
+func selectDB(id string) *sqlx.DB {
+	selected := int([]byte(id)[0]) % len(dbShard)
+	return dbShard[selected]
 }
 
 func getSession(r *http.Request) (*sessions.Session, error) {
