@@ -1085,21 +1085,22 @@ func calculateConditionLevel(condition string) (string, error) {
 }
 
 var (
-	trendCache = []TrendResponse{}
+	trendCache    = []TrendResponse{}
 	trendCacheMux = sync.RWMutex{}
 )
+
 // trendのアップデート
 func trendUpdater() {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
 		select {
-			case <-ticker.C:
-				updateTrend()
+		case <-ticker.C:
+			updateTrend()
 		}
 	}
 }
 
-func updateTrend(){
+func updateTrend() {
 	characterList := []Isu{}
 	err := db.Select(&characterList, "SELECT `character` FROM `isu` GROUP BY `character`")
 	if err != nil {
@@ -1211,15 +1212,8 @@ func postIsuCondition(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "bad request body")
 	}
 
-	tx, err := db.Beginx()
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	defer tx.Rollback()
-
 	var count int
-	err = tx.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
+	err = db.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
@@ -1229,7 +1223,7 @@ func postIsuCondition(c echo.Context) error {
 	}
 
 	query := make([]string, 0, len(req))
-	params := make([]interface{}, 0, len(req) * 5)
+	params := make([]interface{}, 0, len(req)*5)
 	for _, cond := range req {
 		timestamp := time.Unix(cond.Timestamp, 0)
 
@@ -1240,20 +1234,13 @@ func postIsuCondition(c echo.Context) error {
 		params = append(params, jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message)
 	}
 
-	_, err = tx.Exec(
+	_, err = db.Exec(
 		"INSERT INTO `isu_condition`"+
 			"	(`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`)"+
 			"	VALUES "+
 			strings.Join(query, ","),
-			params...,
-		)
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-
-	err = tx.Commit()
+		params...,
+	)
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
