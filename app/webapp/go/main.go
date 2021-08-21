@@ -829,7 +829,7 @@ func generateIsuGraphResponse(q sqlx.Queryer, jiaIsuUUID string, graphDate time.
 	var condition IsuCondition
 
 	// ここのQueryerはsdb相当（のはず）
-	rows, err := q.Queryx("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` ASC", jiaIsuUUID)
+	rows, err := q.Queryx("SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND timestamp >= ? AND timestamp <= ? ORDER BY `timestamp` ASC", jiaIsuUUID, graphDate, graphDate.Add(24*time.Hour))
 	if err != nil {
 		return nil, fmt.Errorf("db error: %v", err)
 	}
@@ -1260,13 +1260,13 @@ func isIsuExists(jiaIsuUUID string) (bool, error) {
 var (
 	insertQueCh = make(chan struct {
 		jiaIsuUUID string
-		params []interface{}
+		params     []interface{}
 	}, 1000)
 )
 
 func insertIsuCondition() {
-	insertQueMap := make(map[int]*struct{
-		query []string
+	insertQueMap := make(map[int]*struct {
+		query  []string
 		params []interface{}
 	})
 	for i := 0; i < len(dbShard); i++ {
@@ -1294,7 +1294,7 @@ func insertIsuCondition() {
 			}
 			insertQueMap[index].query = make([]string, 0, 1000)
 			insertQueMap[index].params = make([]interface{}, 0, 1000)
-			index = (index+1) % len(dbShard)
+			index = (index + 1) % len(dbShard)
 
 		case v := <-insertQueCh:
 			dbIdx := selectDBIndex(v.jiaIsuUUID)
