@@ -223,9 +223,8 @@ func main() {
 	go standalone.Integrate(":8888")
 
 	e := echo.New()
-	echoInt.Integrate(e)
 
-	e.Use(middleware.Logger())
+	echoInt.EnableDebugHandler(e)
 	e.Use(middleware.Recover())
 
 	e.POST("/initialize", postInitialize)
