@@ -316,7 +316,9 @@ func getJIAServiceURL(tx *sqlx.Tx) string {
 // POST /initialize
 // サービスを初期化
 func postInitialize(c echo.Context) error {
+	trendCacheMux.Lock()
 	trendCache = []TrendResponse{}
+	trendCacheMux.Unlock()
 	updateTrend()
 
 	var request InitializeRequest
@@ -1151,7 +1153,7 @@ func updateTrend() {
 
 			conditions := []IsuCondition{}
 			err = sdb.Select(&conditions,
-				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC",
+				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC LIMIT 1",
 				isu.JIAIsuUUID,
 			)
 			if err != nil {
@@ -1198,15 +1200,16 @@ func updateTrend() {
 				Warning:   characterWarningIsuConditions,
 				Critical:  characterCriticalIsuConditions,
 			})
-		trendCacheMux.Lock()
-		trendCache = res
-		trendCacheMux.Unlock()
 	}
+	trendCacheMux.Lock()
+	trendCache = res
+	trendCacheMux.Unlock()
 }
 
 // GET /api/trend
 // ISUの性格毎の最新のコンディション情報
 func getTrend(c echo.Context) error {
+	time.Sleep(500 * time.Millisecond)
 	trendCacheMux.RLock()
 	res := trendCache
 	trendCacheMux.RUnlock()
