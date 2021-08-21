@@ -1,7 +1,7 @@
 #!/bin/bash -eux
 
 sudo cp -f etc/mysql/mariadb.conf.d/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
-sudo cp -rf etc/nginx /etc/nginx
+sudo cp -rf etc/nginx /etc/
 #cp -f env /home/isucon/env
 
 cd /home/isucon/webapp/go
