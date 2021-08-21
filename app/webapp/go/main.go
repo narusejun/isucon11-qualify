@@ -1136,85 +1136,79 @@ func trendUpdater() {
 }
 
 func updateTrend() {
-	characterList := []Isu{}
-	err := db.Select(&characterList, "SELECT `character` FROM `isu` GROUP BY `character`")
+	isuList := []Isu{}
+	err := db.Select(&isuList, "SELECT * FROM `isu`")
 	if err != nil {
 		log.Errorf("db error: %v", err)
 		return
 	}
 
 	res := []TrendResponse{}
+	trendResponseMap := make(map[string]*TrendResponse)
 
-	for _, character := range characterList {
-		isuList := []Isu{}
-		err = db.Select(&isuList,
-			"SELECT * FROM `isu` WHERE `character` = ?",
-			character.Character,
-		)
-		if err != nil {
-			log.Errorf("db error: %v", err)
-			return
-		}
-
-		characterInfoIsuConditions := []*TrendCondition{}
-		characterWarningIsuConditions := []*TrendCondition{}
-		characterCriticalIsuConditions := []*TrendCondition{}
-		for _, isu := range isuList {
-			sdb := selectDB(isu.JIAIsuUUID)
-
-			conditions := []IsuCondition{}
-			err = sdb.Select(&conditions,
-				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC",
-				isu.JIAIsuUUID,
-			)
+	// 椅子ごとに最新のコンディションを取ってきてキャラクターと状態ごとに分類する
+	for _, dbs := range dbShard {
+		isuConditionList := []IsuCondition{}
+		err = dbs.Select(&isuConditionList, "SELECT * FROM `isu_condition` GROUP BY jia_isu_uuid HAVING MAX(timestamp)")
+		for _, isuCondition := range isuConditionList  {
+			conditionLevel, err := calculateConditionLevel(isuCondition.Condition)
 			if err != nil {
-				log.Errorf("db error: %v", err)
+				log.Error(err)
 				return
 			}
 
-			if len(conditions) > 0 {
-				isuLastCondition := conditions[0]
-				conditionLevel, err := calculateConditionLevel(isuLastCondition.Condition)
-				if err != nil {
-					log.Error(err)
-					return
+			var isu Isu
+			for i := 0; i < len(isuList); i++ {
+				if isuCondition.JIAIsuUUID == isuList[i].JIAIsuUUID {
+					isu = isuList[i]
 				}
-				trendCondition := TrendCondition{
-					ID:        isu.ID,
-					Timestamp: isuLastCondition.Timestamp.Unix(),
+			}
+
+			trendCondition := TrendCondition{
+				ID:        isu.ID,
+				Timestamp: isuCondition.Timestamp.Unix(),
+			}
+
+			if _, ok := trendResponseMap[isu.Character]; !ok {
+				trendResponseMap[isu.Character] = &TrendResponse{
+					Character: isu.Character,
+					Info:      make([]*TrendCondition, 0),
+					Warning:   make([]*TrendCondition, 0),
+					Critical:  make([]*TrendCondition, 0),
 				}
-				switch conditionLevel {
-				case "info":
-					characterInfoIsuConditions = append(characterInfoIsuConditions, &trendCondition)
-				case "warning":
-					characterWarningIsuConditions = append(characterWarningIsuConditions, &trendCondition)
-				case "critical":
-					characterCriticalIsuConditions = append(characterCriticalIsuConditions, &trendCondition)
-				}
+			}
+
+			tmp := trendResponseMap[isu.Character]
+			switch conditionLevel {
+			case "info":
+				trendResponseMap[isu.Character].Info = append(tmp.Info, &trendCondition)
+			case "warning":
+				trendResponseMap[isu.Character].Warning = append(tmp.Warning, &trendCondition)
+			case "critical":
+				trendResponseMap[isu.Character].Critical = append(tmp.Critical, &trendCondition)
 			}
 
 		}
 
-		sort.Slice(characterInfoIsuConditions, func(i, j int) bool {
-			return characterInfoIsuConditions[i].Timestamp > characterInfoIsuConditions[j].Timestamp
-		})
-		sort.Slice(characterWarningIsuConditions, func(i, j int) bool {
-			return characterWarningIsuConditions[i].Timestamp > characterWarningIsuConditions[j].Timestamp
-		})
-		sort.Slice(characterCriticalIsuConditions, func(i, j int) bool {
-			return characterCriticalIsuConditions[i].Timestamp > characterCriticalIsuConditions[j].Timestamp
-		})
-		res = append(res,
-			TrendResponse{
-				Character: character.Character,
-				Info:      characterInfoIsuConditions,
-				Warning:   characterWarningIsuConditions,
-				Critical:  characterCriticalIsuConditions,
-			})
-		trendCacheMux.Lock()
-		trendCache = res
-		trendCacheMux.Unlock()
 	}
+
+	for _, trendResponse := range trendResponseMap {
+		sort.Slice(trendResponse.Info, func(i, j int) bool {
+			return trendResponse.Info[i].Timestamp > trendResponse.Info[j].Timestamp
+		})
+		sort.Slice(trendResponse.Warning, func(i, j int) bool {
+			return trendResponse.Warning[i].Timestamp > trendResponse.Warning[j].Timestamp
+		})
+		sort.Slice(trendResponse.Critical, func(i, j int) bool {
+			return trendResponse.Critical[i].Timestamp > trendResponse.Critical[j].Timestamp
+		})
+
+		res = append(res, *trendResponse)
+	}
+
+	trendCacheMux.Lock()
+	trendCache = res
+	trendCacheMux.Unlock()
 }
 
 // GET /api/trend
