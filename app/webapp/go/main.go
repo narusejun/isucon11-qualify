@@ -342,7 +342,7 @@ func postInitialize(c echo.Context) error {
 		c.Logger().Errorf("initialize error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
-	if err := os.MkdirAll("../icons", os.ModeDir); err != nil {
+	if err := os.MkdirAll("../icons", os.ModePerm); err != nil {
 		c.Logger().Errorf("initialize error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
