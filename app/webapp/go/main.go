@@ -356,6 +356,19 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	var images []Isu
+	err = db.Select(&images, "SELECT * FROM `isu`")
+	if err != nil {
+		c.Logger().Errorf("db error: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	for _, image := range images {
+		if err := ioutil.WriteFile(getIsuIconPath(image.JIAUserID, image.JIAIsuUUID), image.Image, os.ModePerm); err != nil {
+			c.Logger().Error(err)
+			return c.NoContent(http.StatusInternalServerError)
+		}
+	}
+
 	_, err = db.Exec(
 		"INSERT INTO `isu_association_config` (`name`, `url`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `url` = VALUES(`url`)",
 		"jia_service_url",
