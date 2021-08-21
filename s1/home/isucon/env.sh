@@ -4,4 +4,4 @@ MYSQL_USER=isucon
 MYSQL_DBNAME=isucondition
 MYSQL_PASS=isucon
 POST_ISUCONDITION_TARGET_BASE_URL="https://isucondition-1.t.isucon.dev"
-USE_SOCKERT=1
+USE_SOCKET=1
