@@ -1,6 +1,6 @@
 #!/bin/bash -eux
 
-sudo cp -f etc/mysql/mariadb.conf.d/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
+#sudo cp -f etc/mysql/mariadb.conf.d/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
 sudo cp -rf etc/nginx /etc/nginx
 #cp -f env /home/isucon/env
 
