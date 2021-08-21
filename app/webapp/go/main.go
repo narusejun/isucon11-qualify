@@ -217,6 +217,9 @@ func init() {
 		log.Fatalf("failed to parse ECDSA public key: %v", err)
 	}
 
+	http.DefaultTransport.(*http.Transport).MaxIdleConns = 0 // 無制限
+	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 1024 // 0にすると2になっちゃう
+	http.DefaultTransport.(*http.Transport).ForceAttemptHTTP2 = true // go1.13以上
 }
 
 func main() {
@@ -258,8 +261,8 @@ func main() {
 			e.Logger.Fatalf("failed to connect db: %v", err)
 			return
 		}
-		dbShard[i].SetMaxOpenConns(100)
-		dbShard[i].SetMaxIdleConns(100)
+		dbShard[i].SetMaxOpenConns(1024)
+		dbShard[i].SetMaxIdleConns(1024)
 		defer dbShard[i].Close()
 	}
 	db = dbShard[0]
@@ -1222,7 +1225,7 @@ func updateTrend() (*[]TrendResponse, error) {
 // GET /api/trend
 // ISUの性格毎の最新のコンディション情報
 func getTrend(c echo.Context) error {
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	trendCacheMux.RLock()
 	res := trendCache
 	trendCacheMux.RUnlock()
