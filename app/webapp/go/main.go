@@ -1248,7 +1248,7 @@ func updateTrend() (*[]TrendResponse, error) {
 // GET /api/trend
 // ISUの性格毎の最新のコンディション情報
 func getTrend(c echo.Context) error {
-	time.Sleep(150 * time.Millisecond)
+	// time.Sleep(30 * time.Millisecond)
 	trendCacheMux.RLock()
 	res := trendCache
 	trendCacheMux.RUnlock()
