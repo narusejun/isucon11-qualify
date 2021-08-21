@@ -21,7 +21,7 @@ CREATE TABLE `isu_condition` (
   `timestamp` DATETIME NOT NULL,
   `is_sitting` TINYINT(1) NOT NULL,
   `condition` VARCHAR(255) NOT NULL,
-  `level` INT GENERATED ALWAYS AS ((LENGTH(condition) - LENGTH(REPLACE(condition, "=true" , ''))) / 5) STORED,
+  `level` INT GENERATED ALWAYS AS ((LENGTH(condition) - LENGTH(REPLACE(condition, '=true' , ''))) / 5) STORED,
   `message` VARCHAR(255) NOT NULL,
   `created_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY(`id`)
