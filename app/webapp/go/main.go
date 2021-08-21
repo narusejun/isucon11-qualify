@@ -218,7 +218,6 @@ func init() {
 		log.Fatalf("failed to parse ECDSA public key: %v", err)
 	}
 
-	go trendUpdater()
 }
 
 func main() {
@@ -272,13 +271,19 @@ func main() {
 		return
 	}
 
+	go trendUpdater()
+	go insertIsuCondition()
+
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
 	e.Logger.Fatal(e.Start(serverPort))
 }
 
+func selectDBIndex(id string) int {
+	return int([]byte(id)[0]) % len(dbShard)
+}
+
 func selectDB(id string) *sqlx.DB {
-	selected := int([]byte(id)[0]) % len(dbShard)
-	return dbShard[selected]
+	return dbShard[selectDBIndex(id)]
 }
 
 func getSession(r *http.Request) (*sessions.Session, error) {
@@ -1253,6 +1258,53 @@ func isIsuExists(jiaIsuUUID string) (bool, error) {
 	return true, nil
 }
 
+var (
+	insertQueCh = make(chan struct {
+		jiaIsuUUID string
+		params []interface{}
+	}, 1000)
+)
+
+func insertIsuCondition() {
+	insertQueMap := make(map[int]*struct{
+		query []string
+		params []interface{}
+	})
+	for i := 0; i < len(dbShard); i++ {
+		insertQueMap[i] = &struct {
+			query  []string
+			params []interface{}
+		}{query: []string{}, params: []interface{}{}}
+	}
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	index := 0
+	for {
+		select {
+		case <-ticker.C:
+			sdb := dbShard[index]
+			_, err := sdb.Exec(
+				"INSERT INTO `isu_condition`"+
+					"	(`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`)"+
+					"	VALUES "+
+					strings.Join(insertQueMap[index].query, ","),
+				insertQueMap[index].params...,
+			)
+			if err != nil {
+				log.Errorf("db insert error: %v", err)
+			}
+			insertQueMap[index].query = make([]string, 0, 1000)
+			insertQueMap[index].params = make([]interface{}, 0, 1000)
+			index = (index+1) % len(dbShard)
+
+		case v := <-insertQueCh:
+			dbIdx := selectDBIndex(v.jiaIsuUUID)
+			insertQueMap[dbIdx].query = append(insertQueMap[dbIdx].query, "(?, ?, ?, ?, ?)")
+			insertQueMap[dbIdx].params = append(insertQueMap[dbIdx].params, v.params...)
+		}
+	}
+}
+
 // POST /api/condition/:jia_isu_uuid
 // ISUからのコンディションを受け取る
 func postIsuCondition(c echo.Context) error {
@@ -1283,30 +1335,16 @@ func postIsuCondition(c echo.Context) error {
 		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
-	query := make([]string, 0, len(req))
-	params := make([]interface{}, 0, len(req)*5)
-
 	for _, cond := range req {
 		timestamp := time.Unix(cond.Timestamp, 0)
 
 		if !isValidConditionFormat(cond.Condition) {
 			return c.String(http.StatusBadRequest, "bad request body")
 		}
-		query = append(query, "(?, ?, ?, ?, ?)")
-		params = append(params, jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message)
-	}
-
-	sdb := selectDB(jiaIsuUUID)
-	_, err = sdb.Exec(
-		"INSERT INTO `isu_condition`"+
-			"	(`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`)"+
-			"	VALUES "+
-			strings.Join(query, ","),
-		params...,
-	)
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		insertQueCh <- struct {
+			jiaIsuUUID string
+			params     []interface{}
+		}{jiaIsuUUID: "(?, ?, ?, ?, ?)", params: []interface{}{jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message}}
 	}
 
 	return c.NoContent(http.StatusAccepted)
