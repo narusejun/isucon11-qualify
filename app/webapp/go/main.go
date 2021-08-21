@@ -21,7 +21,6 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-sql-driver/mysql"
-	"github.com/gorilla/sessions"
 	"github.com/jmoiron/sqlx"
 	echoInt "github.com/kaz/pprotein/integration/echov4"
 	"github.com/kaz/pprotein/integration/standalone"
@@ -56,7 +55,6 @@ var (
 	}
 	dbShard []*sqlx.DB
 
-	sessionStore        sessions.Store
 	mySQLConnectionData *MySQLConnectionEnv
 
 	jiaJWTSigningKey *ecdsa.PublicKey
@@ -207,8 +205,6 @@ func (mc *MySQLConnectionEnv) ConnectDB() (*sqlx.DB, error) {
 }
 
 func init() {
-	sessionStore = sessions.NewCookieStore([]byte(getEnv("SESSION_KEY", "isucondition")))
-
 	key, err := ioutil.ReadFile(jiaJWTSigningKeyPath)
 	if err != nil {
 		log.Fatalf("failed to read file: %v", err)
@@ -218,9 +214,9 @@ func init() {
 		log.Fatalf("failed to parse ECDSA public key: %v", err)
 	}
 
-	http.DefaultTransport.(*http.Transport).MaxIdleConns = 0 // 無制限
+	http.DefaultTransport.(*http.Transport).MaxIdleConns = 0           // 無制限
 	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 1024 // 0にすると2になっちゃう
-	http.DefaultTransport.(*http.Transport).ForceAttemptHTTP2 = true // go1.13以上
+	http.DefaultTransport.(*http.Transport).ForceAttemptHTTP2 = true   // go1.13以上
 }
 
 func main() {
@@ -311,25 +307,13 @@ func selectDB(id string) *sqlx.DB {
 	return dbShard[selectDBIndex(id)]
 }
 
-func getSession(r *http.Request) (*sessions.Session, error) {
-	session, err := sessionStore.Get(r, sessionName)
-	if err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
 func getUserIDFromSession(c echo.Context) (string, int, error) {
-	session, err := getSession(c.Request())
+	cookie, err := c.Cookie(sessionName)
 	if err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("failed to get session: %v", err)
-	}
-	_jiaUserID, ok := session.Values["jia_user_id"]
-	if !ok {
 		return "", http.StatusUnauthorized, fmt.Errorf("no session")
 	}
-	jiaUserID := _jiaUserID.(string)
-	return jiaUserID, 0, nil
+
+	return cookie.Value, 0, nil
 }
 
 func getJIAServiceURL(tx *sqlx.Tx) string {
@@ -456,18 +440,12 @@ func postAuthentication(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	session, err := getSession(c.Request())
-	if err != nil {
-		c.Logger().Error(err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	session.Values["jia_user_id"] = jiaUserID
-	err = session.Save(c.Request(), c.Response())
-	if err != nil {
-		c.Logger().Error(err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
+	c.SetCookie(&http.Cookie{
+		Name:   sessionName,
+		Value:  jiaUserID,
+		Path:   "/",
+		MaxAge: 3600,
+	})
 
 	return c.NoContent(http.StatusOK)
 }
@@ -485,18 +463,11 @@ func postSignout(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	session, err := getSession(c.Request())
-	if err != nil {
-		c.Logger().Error(err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	session.Options = &sessions.Options{MaxAge: -1, Path: "/"}
-	err = session.Save(c.Request(), c.Response())
-	if err != nil {
-		c.Logger().Error(err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
+	c.SetCookie(&http.Cookie{
+		Name:   sessionName,
+		Path:   "/",
+		MaxAge: -1,
+	})
 
 	return c.NoContent(http.StatusOK)
 }
