@@ -98,6 +98,7 @@ type IsuCondition struct {
 	Timestamp  time.Time `db:"timestamp"`
 	IsSitting  bool      `db:"is_sitting"`
 	Condition  string    `db:"condition"`
+	Level      string    `db:"level"`
 	Message    string    `db:"message"`
 	CreatedAt  time.Time `db:"created_at"`
 }
@@ -1048,24 +1049,29 @@ func getIsuConditions(c echo.Context) error {
 func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, conditionLevel map[string]interface{}, startTime time.Time,
 	limit int, isuName string) ([]*GetIsuConditionResponse, error) {
 
+	levels := []string{}
+	for s := range conditionLevel {
+		levels = append(levels, "'"+s+"'")
+	}
+
 	conditions := []IsuCondition{}
 	var err error
 
 	sdb := selectDB(jiaIsuUUID)
 	if startTime.IsZero() {
 		err = sdb.Select(&conditions,
-			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND level IN ("+strings.Join(levels, ",")+")"+
 				"	AND `timestamp` < ?"+
-				"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime,
+				"	ORDER BY `timestamp` DESC LIMIT ?",
+			jiaIsuUUID, endTime, limit,
 		)
 	} else {
 		err = sdb.Select(&conditions,
-			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND level IN ("+strings.Join(levels, ",")+")"+
 				"	AND `timestamp` < ?"+
 				"	AND ? <= `timestamp`"+
-				"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime, startTime,
+				"	ORDER BY `timestamp` DESC LIMIT ?",
+			jiaIsuUUID, endTime, startTime, limit,
 		)
 	}
 	if err != nil {
@@ -1074,27 +1080,16 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 
 	conditionsResponse := []*GetIsuConditionResponse{}
 	for _, c := range conditions {
-		cLevel, err := calculateConditionLevel(c.Condition)
-		if err != nil {
-			continue
+		data := GetIsuConditionResponse{
+			JIAIsuUUID:     c.JIAIsuUUID,
+			IsuName:        isuName,
+			Timestamp:      c.Timestamp.Unix(),
+			IsSitting:      c.IsSitting,
+			Condition:      c.Condition,
+			ConditionLevel: c.Level,
+			Message:        c.Message,
 		}
-
-		if _, ok := conditionLevel[cLevel]; ok {
-			data := GetIsuConditionResponse{
-				JIAIsuUUID:     c.JIAIsuUUID,
-				IsuName:        isuName,
-				Timestamp:      c.Timestamp.Unix(),
-				IsSitting:      c.IsSitting,
-				Condition:      c.Condition,
-				ConditionLevel: cLevel,
-				Message:        c.Message,
-			}
-			conditionsResponse = append(conditionsResponse, &data)
-		}
-	}
-
-	if len(conditionsResponse) > limit {
-		conditionsResponse = conditionsResponse[:limit]
+		conditionsResponse = append(conditionsResponse, &data)
 	}
 
 	return conditionsResponse, nil
@@ -1231,7 +1226,7 @@ func getTrend(c echo.Context) error {
 }
 
 var (
-	isuExistsMap = make(map[string]interface{})
+	isuExistsMap    = make(map[string]interface{})
 	isuExistsMapMux = sync.RWMutex{}
 )
 
@@ -1280,7 +1275,6 @@ func postIsuCondition(c echo.Context) error {
 	} else if len(req) == 0 {
 		return c.String(http.StatusBadRequest, "bad request body")
 	}
-
 
 	if ok, err := isIsuExists(jiaIsuUUID); err != nil {
 		c.Logger().Errorf("db error: %v", err)
