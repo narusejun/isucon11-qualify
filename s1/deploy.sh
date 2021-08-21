@@ -3,6 +3,7 @@
 sudo cp -f etc/mysql/mariadb.conf.d/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
 sudo cp -f etc/nginx/nginx.conf /etc/nginx/nginx.conf
 sudo cp -f etc/nginx/sites-available/isucondition.conf /etc/nginx/sites-available/isucondition.conf
+sudo cp -f home/isucon/env.sh /home/isucon/env.sh
 
 #cp -f env /home/isucon/env
 

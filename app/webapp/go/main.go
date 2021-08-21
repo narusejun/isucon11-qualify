@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -276,8 +277,30 @@ func main() {
 	go trendUpdater()
 	go insertIsuCondition()
 
-	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
-	e.Logger.Fatal(e.Start(serverPort))
+	if (getEnv("USE_SOCKET", "0") == "1") {
+		// ここからソケット接続設定 ---
+		socket_file := "/var/run/app.sock"
+		os.Remove(socket_file)
+
+		l, err := net.Listen("unix", socket_file)
+		if err != nil {
+			e.Logger.Fatal(err)
+		}
+
+		// go runユーザとnginxのユーザ（グループ）を同じにすれば777じゃなくてok
+		err = os.Chmod(socket_file, 0777)
+		if err != nil {
+			e.Logger.Fatal(err)
+		}
+
+		e.Listener = l
+		e.Logger.Fatal(e.Start(""))
+		// ここまで ---
+	} else {
+		serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
+		e.Logger.Fatal(e.Start(serverPort))
+	}
+
 }
 
 func selectDBIndex(id string) int {
