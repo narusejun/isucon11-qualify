@@ -10,9 +10,11 @@ sudo cp -f home/isucon/env.sh /home/isucon/env.sh
 cd /home/isucon/webapp/go
 go build -o isucondition
 
+sudo systemctl restart isucondition.go
+sleep 1
+
 sudo systemctl restart nginx
 sudo systemctl restart mariadb
-sudo systemctl restart isucondition.go
 
 
 # slow query logを有効化する
