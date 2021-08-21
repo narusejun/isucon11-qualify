@@ -21,7 +21,15 @@ CREATE TABLE `isu_condition` (
   `timestamp` DATETIME NOT NULL,
   `is_sitting` TINYINT(1) NOT NULL,
   `condition` VARCHAR(255) NOT NULL,
-  `level` INT GENERATED ALWAYS AS ((LENGTH(`condition`) - LENGTH(REPLACE(`condition`, '=true' , ''))) / 5) STORED,
+  `level` VARCHAR(10) GENERATED ALWAYS AS (
+      CASE CAST((LENGTH(`condition`) - LENGTH(REPLACE(`condition`, '=true' , ''))) / 5 AS INT)
+          WHEN 0 THEN 'info'
+          WHEN 1 THEN 'warning'
+          WHEN 2 THEN 'warning'
+          WHEN 3 THEN 'critical'
+          ELSE ''
+      END
+  ) STORED,
   `message` VARCHAR(255) NOT NULL,
   `created_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY(`id`)
