@@ -276,8 +276,8 @@ func main() {
 }
 
 func selectDB(id string) *sqlx.DB {
-	selected := int([]byte(id)[0]) % len(dbShard)
-	return dbShard[selected]
+	//selected := int([]byte(id)[0]) % len(dbShard)
+	return dbShard[1]
 }
 
 func getSession(r *http.Request) (*sessions.Session, error) {
