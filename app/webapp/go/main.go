@@ -1049,24 +1049,29 @@ func getIsuConditions(c echo.Context) error {
 func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, conditionLevel map[string]interface{}, startTime time.Time,
 	limit int, isuName string) ([]*GetIsuConditionResponse, error) {
 
+	levels := []string{}
+	for s := range conditionLevel {
+		levels = append(levels, "'"+s+"'")
+	}
+
 	conditions := []IsuCondition{}
 	var err error
 
 	sdb := selectDB(jiaIsuUUID)
 	if startTime.IsZero() {
 		err = sdb.Select(&conditions,
-			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND level IN ("+strings.Join(levels, ",")+")"+
 				"	AND `timestamp` < ?"+
-				"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime,
+				"	ORDER BY `timestamp` DESC LIMIT ?",
+			jiaIsuUUID, endTime, limit,
 		)
 	} else {
 		err = sdb.Select(&conditions,
-			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? AND level IN ("+strings.Join(levels, ",")+")"+
 				"	AND `timestamp` < ?"+
 				"	AND ? <= `timestamp`"+
-				"	ORDER BY `timestamp` DESC",
-			jiaIsuUUID, endTime, startTime,
+				"	ORDER BY `timestamp` DESC LIMIT ?",
+			jiaIsuUUID, endTime, startTime, limit,
 		)
 	}
 	if err != nil {
@@ -1092,10 +1097,6 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 			}
 			conditionsResponse = append(conditionsResponse, &data)
 		}
-	}
-
-	if len(conditionsResponse) > limit {
-		conditionsResponse = conditionsResponse[:limit]
 	}
 
 	return conditionsResponse, nil
@@ -1232,7 +1233,7 @@ func getTrend(c echo.Context) error {
 }
 
 var (
-	isuExistsMap = make(map[string]interface{})
+	isuExistsMap    = make(map[string]interface{})
 	isuExistsMapMux = sync.RWMutex{}
 )
 
@@ -1281,7 +1282,6 @@ func postIsuCondition(c echo.Context) error {
 	} else if len(req) == 0 {
 		return c.String(http.StatusBadRequest, "bad request body")
 	}
-
 
 	if ok, err := isIsuExists(jiaIsuUUID); err != nil {
 		c.Logger().Errorf("db error: %v", err)
