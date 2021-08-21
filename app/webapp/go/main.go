@@ -1344,7 +1344,7 @@ func postIsuCondition(c echo.Context) error {
 		insertQueCh <- struct {
 			jiaIsuUUID string
 			params     []interface{}
-		}{jiaIsuUUID: "(?, ?, ?, ?, ?)", params: []interface{}{jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message}}
+		}{jiaIsuUUID: jiaIsuUUID, params: []interface{}{jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message}}
 	}
 
 	return c.NoContent(http.StatusAccepted)
