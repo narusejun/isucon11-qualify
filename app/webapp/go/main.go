@@ -191,7 +191,7 @@ func getEnv(key string, defaultValue string) string {
 
 func NewMySQLConnectionEnv(host string) *MySQLConnectionEnv {
 	return &MySQLConnectionEnv{
-		Host:     getEnv("MYSQL_HOST", host),
+		Host:     host,
 		Port:     getEnv("MYSQL_PORT", "3306"),
 		User:     getEnv("MYSQL_USER", "isucon"),
 		DBName:   getEnv("MYSQL_DBNAME", "isucondition"),
@@ -252,7 +252,7 @@ func main() {
 
 	dbShard = make([]*sqlx.DB, len(dbHosts))
 
-	for i, _ := range dbShard {
+	for i := range dbShard {
 		var err error
 		dbShard[i], err = NewMySQLConnectionEnv(dbHosts[i]).ConnectDB()
 		if err != nil {
