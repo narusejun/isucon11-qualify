@@ -20,4 +20,7 @@ QUERY="
 "
 
 echo $QUERY | sudo mysql -uroot
-sudo chmod 777 /var/log/mysql/mysql-slow.log
+
+# log permission
+sudo chmod 777 /var/log/nginx /var/log/nginx/*
+sudo chmod 777 /var/log/mysql /var/log/mysql/*
