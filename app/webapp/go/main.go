@@ -319,7 +319,9 @@ func postInitialize(c echo.Context) error {
 	trendCacheMux.Lock()
 	trendCache = []TrendResponse{}
 	trendCacheMux.Unlock()
-	updateTrend()
+	isuExistsMapMux.Lock()
+	isuExistsMap = make(map[string]interface{})
+	isuExistsMapMux.Unlock()
 
 	var request InitializeRequest
 	err := c.Bind(&request)
@@ -367,6 +369,15 @@ func postInitialize(c echo.Context) error {
 		c.Logger().Errorf("db error : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+
+	trendCacheMux.Lock()
+	trend, err := updateTrend()
+	if err != nil {
+		c.Logger().Errorf("update trend error : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	trendCache = *trend
+	trendCacheMux.Unlock()
 
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "go",
@@ -1119,17 +1130,22 @@ func trendUpdater() {
 	for {
 		select {
 		case <-ticker.C:
-			updateTrend()
+			trendCacheMux.Lock()
+			trend, err := updateTrend()
+			if err == nil {
+				trendCache = *trend
+			}
+			trendCacheMux.Unlock()
 		}
 	}
 }
 
-func updateTrend() {
+func updateTrend() (*[]TrendResponse, error) {
 	characterList := []Isu{}
 	err := db.Select(&characterList, "SELECT `character` FROM `isu` GROUP BY `character`")
 	if err != nil {
 		log.Errorf("db error: %v", err)
-		return
+		return nil, err
 	}
 
 	res := []TrendResponse{}
@@ -1142,7 +1158,7 @@ func updateTrend() {
 		)
 		if err != nil {
 			log.Errorf("db error: %v", err)
-			return
+			return nil, err
 		}
 
 		characterInfoIsuConditions := []*TrendCondition{}
@@ -1158,7 +1174,7 @@ func updateTrend() {
 			)
 			if err != nil {
 				log.Errorf("db error: %v", err)
-				return
+				return nil, err
 			}
 
 			if len(conditions) > 0 {
@@ -1166,7 +1182,7 @@ func updateTrend() {
 				conditionLevel, err := calculateConditionLevel(isuLastCondition.Condition)
 				if err != nil {
 					log.Error(err)
-					return
+					return nil, err
 				}
 				trendCondition := TrendCondition{
 					ID:        isu.ID,
@@ -1201,9 +1217,7 @@ func updateTrend() {
 				Critical:  characterCriticalIsuConditions,
 			})
 	}
-	trendCacheMux.Lock()
-	trendCache = res
-	trendCacheMux.Unlock()
+	return &res, nil
 }
 
 // GET /api/trend
@@ -1214,6 +1228,34 @@ func getTrend(c echo.Context) error {
 	res := trendCache
 	trendCacheMux.RUnlock()
 	return c.JSON(http.StatusOK, res)
+}
+
+var (
+	isuExistsMap = make(map[string]interface{})
+	isuExistsMapMux = sync.RWMutex{}
+)
+
+func isIsuExists(jiaIsuUUID string) (bool, error) {
+	isuExistsMapMux.RLock()
+	if _, ok := isuExistsMap[jiaIsuUUID]; ok {
+		isuExistsMapMux.RUnlock()
+		return true, nil
+	}
+	isuExistsMapMux.RUnlock()
+
+	var count int
+	err := db.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
+	if err != nil {
+		return false, err
+	}
+	if count == 0 {
+		return false, nil
+	}
+
+	isuExistsMapMux.Lock()
+	isuExistsMap[jiaIsuUUID] = true
+	isuExistsMapMux.Unlock()
+	return true, nil
 }
 
 // POST /api/condition/:jia_isu_uuid
@@ -1239,13 +1281,11 @@ func postIsuCondition(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "bad request body")
 	}
 
-	var count int
-	err = db.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
-	if err != nil {
+
+	if ok, err := isIsuExists(jiaIsuUUID); err != nil {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
-	}
-	if count == 0 {
+	} else if !ok {
 		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
