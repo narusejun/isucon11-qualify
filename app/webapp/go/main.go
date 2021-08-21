@@ -1277,7 +1277,7 @@ func insertIsuCondition() {
 		}{query: []string{}, params: []interface{}{}}
 	}
 
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(300 * time.Millisecond)
 	index := 0
 	for {
 		select {
@@ -1309,7 +1309,7 @@ func insertIsuCondition() {
 // ISUからのコンディションを受け取る
 func postIsuCondition(c echo.Context) error {
 	// TODO: 一定割合リクエストを落としてしのぐようにしたが、本来は全量さばけるようにすべき
-	dropProbability := 0.8
+	dropProbability := 0.6
 	if rand.Float64() <= dropProbability {
 		c.Logger().Warnf("drop post isu condition request")
 		return c.NoContent(http.StatusAccepted)
