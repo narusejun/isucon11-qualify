@@ -297,19 +297,7 @@ func getUserIDFromSession(c echo.Context) (string, int, error) {
 	if !ok {
 		return "", http.StatusUnauthorized, fmt.Errorf("no session")
 	}
-
 	jiaUserID := _jiaUserID.(string)
-	var count int
-
-	err = db.Get(&count, "SELECT 1 FROM `user` WHERE `jia_user_id` = ? LIMIT 1", jiaUserID)
-	if err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("db error: %v", err)
-	}
-
-	if count == 0 {
-		return "", http.StatusUnauthorized, fmt.Errorf("not found: user")
-	}
-
 	return jiaUserID, 0, nil
 }
 
